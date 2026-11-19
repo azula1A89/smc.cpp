@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(smc_core
+set(SMC_CORE_SOURCES
     src/cpp_generator.cpp
     src/cpp_generator_internal.cpp
     src/generator.cpp
@@ -14,8 +14,13 @@ add_library(smc_core
     src/parser.cpp
     src/syntax_checker.cpp
 )
-target_include_directories(smc_core PUBLIC include)
-target_compile_features(smc_core PUBLIC cxx_std_20)
+
+add_library(smc_core ${SMC_CORE_SOURCES})
+add_library(smc_core_s STATIC ${SMC_CORE_SOURCES})
+foreach(target smc_core smc_core_s)
+    target_include_directories(${target} PUBLIC include)
+    target_compile_features(${target} PUBLIC cxx_std_20)
+endforeach()
 
 add_executable(smc_cpp src/main.cpp)
 target_link_libraries(smc_cpp PRIVATE smc_core)
