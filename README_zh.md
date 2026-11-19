@@ -11,6 +11,8 @@
 状态、转换、守卫条件以及不透明的嵌入式 C++ 动作和参数文本。语法检查器会校验必要的
 C++ 声明、起始状态引用、转换目标、重复声明和守卫条件，以及默认状态的限制。
 
+[SMC Editor](https://github.com/azula1A89/smc-editor) 预编译版本可在 Releases 页面获取：
+[Linux x64](https://github.com/azula1A89/smc-editor/releases/download/v0.0.2/smc-editor-linux-x86_64.tar.gz)
 ## 构建与测试
 
 ```sh
