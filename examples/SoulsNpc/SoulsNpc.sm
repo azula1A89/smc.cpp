@@ -1,0 +1,157 @@
+%start NpcMap::Idle
+%class SoulsNpc
+%header npc.h
+
+// Top-level behaviour. Combat is a pushed sub-machine (CombatMap).
+%map NpcMap
+%%
+
+Idle
+Entry { startPatrol(); }
+{
+    HpZero                      Dead {}
+    Stagger                     Staggered {}
+    Sensed(noise: bool)         Alert { setInvestigatePoint(); }
+    Damaged                     Alert { setInvestigatePoint(); }
+}
+
+Alert
+Entry { startInvestigateTimer(); }
+{
+    HpZero                      Dead {}
+    TargetSpotted               Chase {}
+    AlertTimeout                Idle {}
+    Damaged                     Chase {}
+}
+
+Chase
+Entry { moveToTarget(); }
+{
+    HpZero                      Dead {}
+    Stagger                     Staggered {}
+    InAttackRange               push(CombatMap::Strafe) {}
+    TargetLost                  Returning {}
+    BeyondLeash                 Returning {}
+    PhaseStart                  PhaseTransition {}
+}
+
+Returning
+Entry { resetAggroAndHeal(); walkToSpawn(); }
+{
+    HpZero                      Dead {}
+    AtSpawn                     Idle {}
+    // Damage while returning is ignored (leash invulnerability)
+    Damaged                     nil {}
+}
+
+Staggered
+Entry { playStaggerAnim(); openRiposteWindow(); }
+Exit  { closeRiposteWindow(); restorePoise(); }
+{
+    HpZero                      Dead {}
+    Riposted                    Dead { }
+    StaggerEnd                  Chase {}
+}
+
+PhaseTransition
+Entry { setInvulnerable(true); playPhaseCutscene(); }
+Exit  { setInvulnerable(false); swapMoveSet(); }
+{
+    PhaseDone                   Chase {}
+}
+
+Dead
+Entry { dropSouls(); playDeathAnim(); }
+{
+    Default                     nil {}
+}
+
+%%
+
+// Combat sub-machine. Pop returns control to NpcMap's calling state.
+%map CombatMap
+%%
+
+Strafe
+Entry { startThinkTimer(); }
+{
+    ThinkTimer                  SelectAttack {}
+    TargetOutOfRange            pop(TargetLost) {}
+    BeyondLeash                 pop(BeyondLeash) {}
+    HpZero                      pop(HpZero) {}
+    Stagger                     pop(Stagger) {}
+    HpBelowPhaseThreshold [ctxt.isBoss()]
+                                pop(PhaseStart) {}
+    PlayerAttacking             Block {}
+}
+
+SelectAttack
+Entry { pickMove(); }
+{
+    HpZero                      pop(HpZero) {}
+    Stagger                     pop(Stagger) {}
+    // Guards read the move table and attack-token state
+    MovePicked [ctxt.hasToken() && ctxt.lowHp()]
+                                Retreat {}
+    MovePicked [ctxt.hasToken()]
+                                Windup {}
+    MovePicked [ctxt.targetTooFar()]
+                                GapCloser {}
+    MovePicked                  Strafe {}
+}
+
+Windup
+Entry { playTelegraph(); }
+Exit  { }
+{
+    HpZero                      pop(HpZero) {}
+    // Only windup (and recovery) can be interrupted by poise break
+    Stagger                     pop(Stagger) {}
+    WindupDone                  Strike {}
+}
+
+Strike
+Entry { enableHitbox(); }
+Exit  { disableHitbox(); }
+{
+    // Super armor: Stagger is ignored during active frames
+    Stagger                     nil {}
+    HpZero                      pop(HpZero) {}
+    StrikeDone                  Recovery {}
+}
+
+Recovery
+Entry { startPunishWindow(); }
+Exit  { releaseToken(); }
+{
+    HpZero                      pop(HpZero) {}
+    Stagger                     pop(Stagger) {}
+    RecoveryDone                Strafe {}
+}
+
+Block
+Entry { raiseGuard(); }
+Exit  { lowerGuard(); }
+{
+    HpZero                      pop(HpZero) {}
+    Stagger                     pop(Stagger) {}
+    ThreatGone                  Strafe {}
+}
+
+Retreat
+Entry { backOffAndDodge(); }
+{
+    HpZero                      pop(HpZero) {}
+    Stagger                     pop(Stagger) {}
+    DistanceRegained            Strafe {}
+}
+
+GapCloser
+Entry { useGapCloser(); }
+{
+    HpZero                      pop(HpZero) {}
+    Stagger                     pop(Stagger) {}
+    InRange                     Strafe {}
+}
+
+%%

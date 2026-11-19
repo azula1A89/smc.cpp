@@ -1,0 +1,20 @@
+help
+event Sensed maybe
+set token yes
+set unknown true
+event UnknownEvent
+event WindupDone extra
+status extra
+event TargetSpotted
+event Sensed true
+event TargetSpotted
+event InAttackRange
+set token true
+set lowhp true
+event ThinkTimer
+event MovePicked
+event DistanceRegained
+event BeyondLeash
+event Damaged
+status
+quit

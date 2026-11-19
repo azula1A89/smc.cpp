@@ -1,0 +1,14 @@
+%start Main::Ready
+%class ExampleContext
+%header ExampleContext.h
+%map Main
+%%
+Ready
+{
+    begin Running { started(); }
+}
+Running
+{
+    stop Ready { stopped(); }
+}
+%%

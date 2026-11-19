@@ -1,0 +1,55 @@
+%start Main::Idle
+%class Owner
+%fsmclass Machine
+%header cpp_fixture_owner.hpp
+%package example::nested
+%map Main
+%%
+Idle
+Entry { record(1); }
+Exit { record(2); }
+{
+    go(value: int) [value > 0] Active { record(value); }
+                   [value <= 0] nil { record(0); }
+    repeat(value: int) [value > 0] nil { record(value); }
+    repeat(value: int) [value == -2] nil { record(8); }
+    pushit Resume/push(Worker::Busy) { record(3); }
+    pushAgain push(Worker::Busy) {}
+    throwPush push(Worker::Busy) { failAction(); }
+    assignment nil { number = 42; }
+    complex(value: std::pair<int, int>, callback: void (*)(int)) nil {
+        record(value.first);
+        invoke(callback);
+        Helper::recordStatic();
+        record([] { return 14; }());
+    }
+}
+Resume
+Entry { record(5); }
+{
+    done(value: int) nil { record(value); }
+}
+Active
+Entry { record(10); }
+Exit { record(11); }
+{
+    fail Idle { failAction(); }
+    missing Idle {}
+}
+Default
+{
+    repeat(value: int) nil { record(9); }
+    fallback nil { record(6); }
+}
+%%
+%map Worker
+%%
+Busy
+Entry { record(12); }
+Exit { record(13); }
+{
+    finish pop(done, 7) { record(4); }
+    leave pop {}
+    jumpBack jump(Main::Idle) { emptyStateStack(); }
+}
+%%

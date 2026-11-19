@@ -1,0 +1,198 @@
+// ============================================================================
+// Souls-like game NPC state machine in SMC format
+// Corresponding graph: digraph SoulsNPC
+// ============================================================================
+
+%class SoulsNPC
+%header SoulsNPC.h
+%start MainMap::Idle
+
+// ----------------------------------------------------------------------------
+// 1. High-level state map (MainMap)
+// ----------------------------------------------------------------------------
+%map MainMap
+%%
+
+// Idle / patrol
+Idle
+{
+    SeeTarget                       Alert           { investigateSource(); }
+    HearNoise                       Alert           { investigateSource(); }
+    Damaged                         Alert           { investigateSource(); }
+}
+
+// Alert / investigate
+Alert
+{
+    TargetConfirmed                 Chase           {}
+    Timeout                         Idle            {}
+    Damaged                         Chase           {} // Damage while alerting starts a chase
+}
+
+// Chase
+Chase
+{
+    // Enter the combat sub-machine when in range (starts in Strafe)
+    UpdateDistance [ctxt.dist < ctxt.attackRange]
+                                    CombatMap::Strafe {}
+
+    // Target lost for too long or beyond the leash range
+    TargetLostTimeout               Return          { resetAggro(); heal(); }
+    UpdateDistance [ctxt.isBeyondLeash()]
+                                    Return          { resetAggro(); heal(); }
+
+    // Death check
+    TakeDamage [ctxt.hp <= 0]       Dead            { dropSouls(); }
+}
+
+// Return / reset
+Return
+{
+    AtSpawn                         Idle            {}
+}
+
+// Poise break / riposte window (stagger state)
+Stagger
+Entry { openRiposteWindow(); }
+Exit  { closeRiposteWindow(); }
+{
+    // Riposte kill or zero health
+    RiposteKill                     Dead            { dropSouls(); }
+    TakeDamage [ctxt.hp <= 0]       Dead            { dropSouls(); }
+
+    // Recover from stagger and return to combat movement
+    Recovered                       CombatMap::Strafe {}
+}
+
+// Boss phase transition (invulnerability during the transition)
+Phase
+Entry { setInvulnerable(true); loadNewMoveSet(); }
+Exit  { setInvulnerable(false); }
+{
+    NewMoveSetReady                 CombatMap::Select {}
+}
+
+// Terminal death state
+Dead
+{
+    // The terminal state ignores all external events
+    Default                         nil             {}
+}
+
+// Global defaults for events bubbling up from CombatMap, such as disengage,
+// poise break, phase transition, and death
+Default
+{
+    // Force disengagement when beyond leash range
+    BeyondLeash                     Return          { resetAggro(); heal(); }
+
+    // Enter the riposte window when poise reaches zero
+    PoiseBroken                     Stagger         {}
+
+    // Start the next phase when the Boss falls below 50% health
+    CheckPhase [ctxt.isBoss() && ctxt.hp < ctxt.maxHp * 0.5]
+                                    Phase           {}
+
+    // Die when health reaches zero in any state
+    Killed [ctxt.hp <= 0]           Dead            { dropSouls(); }
+}
+
+%%
+
+// ----------------------------------------------------------------------------
+// 2. Combat sub-machine (CombatMap; corresponding graph subgraph cluster_combat)
+// ----------------------------------------------------------------------------
+%map CombatMap
+%%
+
+// Strafing / movement
+Strafe
+{
+    // Select a move when the think timer expires
+    ThinkTimerExpired               Select          {}
+
+    // Return to the high-level chase state when the target moves out of range
+    UpdateDistance [ctxt.dist > ctxt.range]
+                                    MainMap::Chase  {}
+
+    // Poise break or parry while moving
+    PoiseBroken                     MainMap::Stagger {}
+    Parried                         MainMap::Stagger {}
+}
+
+// Move selector (chooses based on distance, weight, and cooldown)
+Select
+{
+    // Close the distance when the target is too far away
+    EvaluateMove [ctxt.isTargetTooFar()]
+                                    Gap             {}
+
+    // Block or prepare to parry while the player is attacking
+    EvaluateMove [ctxt.isPlayerAttacking()]
+                                    Block           {}
+
+    // Retreat or dodge at low health or under pressure
+    EvaluateMove [ctxt.isLowHp() || ctxt.isPressured()]
+                                    Retreat         {}
+
+    // Begin the windup after selecting a move and acquiring an attack token
+    MoveChosen [ctxt.hasAttackToken()]
+                                    Windup          { consumeToken(); }
+}
+
+// Attack windup (telegraph period; interruptible)
+Windup
+Entry { startTelegraph(); setInterruptible(true); }
+Exit  { setInterruptible(false); }
+{
+    TelegraphDone                   Strike          {}
+    PoiseBroken                     MainMap::Stagger {}
+}
+
+// Attack strike (activate hit frames)
+Strike
+Entry { enableHitFrames(); }
+Exit  { disableHitFrames(); }
+{
+    HitFramesEnd                    Recover         {}
+    TakeDamage [ctxt.hp <= 0]       MainMap::Dead   { dropSouls(); }
+}
+
+// Recovery (player punish window)
+Recover
+Entry { openPunishWindow(); }
+Exit  { closePunishWindow(); }
+{
+    RecoveryDone                    Strafe          {}
+    PoiseBroken                     MainMap::Stagger {}
+}
+
+// Blocking / parryable state
+Block
+{
+    ThreatGone                      Strafe          {}
+    Parried                         MainMap::Stagger {}
+}
+
+// Retreat / dodge state
+Retreat
+{
+    DistanceRegained                Strafe          {}
+}
+
+// Gap closer / ranged approach
+Gap
+{
+    InRange                         Strafe          {}
+}
+
+// Global fallback rules for the combat sub-machine, inherited from MainMap::Default
+Default
+{
+    BeyondLeash                     MainMap::Return { resetAggro(); heal(); }
+    CheckPhase [ctxt.isBoss() && ctxt.hp < ctxt.maxHp * 0.5]
+                                    MainMap::Phase  {}
+    TakeDamage [ctxt.hp <= 0]       MainMap::Dead   { dropSouls(); }
+}
+
+%%
