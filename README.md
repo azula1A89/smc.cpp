@@ -16,7 +16,8 @@ transition destinations, duplicate declarations/guards, and restrictions on
 the default state.
 
 [SMC Editor](https://github.com/azula1A89/smc-editor) pre-built binaries are available on the releases page:
-[Linux x64](https://github.com/azula1A89/smc-editor/releases/download/v0.0.2/smc-editor-linux-x86_64.tar.gz)
+- [Linux x64](https://github.com/azula1A89/smc-editor/releases/latest/download/smc-editor-linux-x86_64.tar.gz)
+- [Windows x64](https://github.com/azula1A89/smc-editor/releases/latest/download/smc-editor.exe)
 
 ## Build and test
 
