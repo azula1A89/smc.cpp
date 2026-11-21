@@ -12,7 +12,8 @@
 C++ 声明、起始状态引用、转换目标、重复声明和守卫条件，以及默认状态的限制。
 
 [SMC Editor](https://github.com/azula1A89/smc-editor) 预编译版本可在 Releases 页面获取：
-[Linux x64](https://github.com/azula1A89/smc-editor/releases/download/v0.0.2/smc-editor-linux-x86_64.tar.gz)
+- [Linux x64](https://github.com/azula1A89/smc-editor/releases/latest/download/smc-editor-linux-x86_64.tar.gz)
+- [Windows x64](https://github.com/azula1A89/smc-editor/releases/latest/download/smc-editor.exe)
 ## 构建与测试
 
 ```sh
