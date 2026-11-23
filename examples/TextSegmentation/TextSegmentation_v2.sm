@@ -1,0 +1,43 @@
+%start Splitting::Text
+%class TextSegmentation
+%fsmclass TextSegmentationContext
+%header segmentation.h
+
+%map Splitting
+%%
+Text
+{
+    Character [ctxt.is_opening_quote()] 		Quote { begin_quote(); }
+              [ctxt.is_delimiter()] 			nil { end_atom(); }
+    Character 									nil {}
+    Finish 										Packing::Empty { finish_text(); }
+}
+Quote
+{
+    Character [ctxt.is_mismatched_closer()] 	Text { fallback_quote(); }
+              [ctxt.closes_outer_quote()] 		Text { end_quote(); }
+              [ctxt.is_closing_quote()] 		nil { pop_quote(); }
+              [ctxt.is_opening_quote()] 		nil { push_quote(); }
+    Character 									nil {}
+    Finish 										Packing::Empty { fallback_quote(); finish_text(); }
+}
+%%
+
+%map Packing
+%%
+Empty
+{
+    Atom [ctxt.candidate_fits()] 				Filled { append_atom(); }
+    Atom 										Filled { split_atom(); }
+    Finish 										Done {}
+}
+Filled
+{
+    Atom [ctxt.candidate_fits()] 				nil { append_atom(); }
+    Flush 										Empty { flush(); }
+    Finish 										Done { flush(); }
+}
+Done
+{
+}
+%%
