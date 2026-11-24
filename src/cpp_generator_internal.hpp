@@ -19,6 +19,7 @@ struct Action {
 };
 
 std::string trim(std::string_view text);
+bool identifier(std::string_view text);
 std::vector<Parameter> parameters(std::string_view text);
 std::vector<Action> actions(std::string_view text);
 std::string fsm_name(const Fsm& fsm);

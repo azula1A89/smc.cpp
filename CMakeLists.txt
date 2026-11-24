@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(SMC_CORE_SOURCES
     src/cpp_generator.cpp
     src/cpp_generator_internal.cpp
+    src/cpp_todo.cpp
     src/generator.cpp
     src/lexer.cpp
     src/parser.cpp

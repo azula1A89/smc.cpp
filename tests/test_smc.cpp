@@ -277,6 +277,116 @@ Ready { run(a: int) [a > 0] nil {} run(b: int) nil {} }
     assert(!checker.check(*fsm));
 }
 
+void test_cpp_todo_checklist() {
+    smc::Fsm fsm;
+    smc::State state;
+    state.name = "Default";
+    state.entry_actions = "start(); start(); Helper::external(); emptyStateStack();";
+    state.exit_actions = "finish(); object.value = ctxt.source;";
+    smc::Guard first;
+    first.condition = R"CPP(ctxt.ready() && ctxt.hp < 2 && value > 0 &&
+        other.ctxt.fake && "ctxt.stringFake" && R"tag(ctxt.rawFake)tag" /* ctxt.commentFake */)CPP";
+    first.actions = "start(); record(value); number = 42; combined();"
+                    " use(ctxt.argument); Helper::external(ctxt.extra);";
+    first.pop_arguments = "ctxt.result";
+    smc::Guard second;
+    second.condition = "ctxt.combined() && ctxt.hp > 0";
+    second.actions = "record();";
+    smc::Transition transition;
+    transition.guards = {first, second};
+    state.transitions.push_back(transition);
+    smc::StateMap map;
+    map.states.push_back(state);
+    fsm.maps.push_back(map);
+
+    const auto output = smc::generate_cpp_todo(fsm);
+    assert(output.find("void start(); // action") != std::string::npos);
+    assert(output.find("void finish(); // action") != std::string::npos);
+    assert(output.find("void start();", output.find("void start();") + 1) == std::string::npos);
+    assert(output.find("record (action): determine declaration") != std::string::npos);
+    assert(output.find("number (action): determine declaration") != std::string::npos);
+    assert(output.find("object (action): determine declaration") != std::string::npos);
+    assert(output.find("combined (action, guard function reference)") != std::string::npos);
+    assert(output.find("ready (guard function reference)") != std::string::npos);
+    assert(output.find("hp (guard member reference)") != std::string::npos);
+    assert(output.find("source (action reference)") != std::string::npos);
+    assert(output.find("argument (action reference)") != std::string::npos);
+    assert(output.find("extra (action reference)") != std::string::npos);
+    assert(output.find("result (action reference)") != std::string::npos);
+    assert(output.find("TODO: fake") == std::string::npos);
+    assert(output.find("TODO: stringFake") == std::string::npos);
+    assert(output.find("TODO: rawFake") == std::string::npos);
+    assert(output.find("TODO: commentFake") == std::string::npos);
+    assert(output.find("TODO: external") == std::string::npos);
+    assert(output.find("TODO: emptyStateStack") == std::string::npos);
+    assert(output.find("// guard expression: ctxt.ready()") != std::string::npos);
+    assert(output.find("// pop arguments: ctxt.result") != std::string::npos);
+    assert(output.find("\\n") != std::string::npos);
+}
+
+void test_cpp_todo_empty_and_invalid_actions() {
+    smc::Fsm fsm;
+    assert(smc::generate_cpp_todo(fsm).find("No direct host references recognized") !=
+           std::string::npos);
+    smc::State state;
+    state.entry_actions = "unfinished(";
+    smc::StateMap map;
+    map.states.push_back(state);
+    fsm.maps.push_back(map);
+    try {
+        (void)smc::generate_cpp_todo(fsm);
+        assert(false);
+    } catch (const std::invalid_argument&) {}
+}
+
+void test_cpp_todo_parsed_fsm() {
+    const std::string source = R"SMC(%start Main::Ready
+%class Owner
+%map Main
+%%
+Ready
+Entry { begin(); }
+{
+    go(value: int) [ctxt.enabled() && ctxt.count > value] nil { update(value); }
+}
+%%
+)SMC";
+    smc::Diagnostics diagnostics;
+    smc::Parser parser(source, "incomplete.sm", diagnostics);
+    const auto fsm = parser.parse();
+    assert(fsm);
+    const auto output = smc::generate_cpp_todo(*fsm);
+    assert(output.find("void begin(); // action") != std::string::npos);
+    assert(output.find("enabled (guard function reference)") != std::string::npos);
+    assert(output.find("count (guard member reference)") != std::string::npos);
+    assert(output.find("update (action): determine declaration") != std::string::npos);
+    assert(output.find("TODO: value") == std::string::npos);
+}
+
+void test_cpp_todo_ambiguous_names_and_comment_safety() {
+    smc::Fsm fsm;
+    fsm.context_class = "Owner";
+    smc::Guard guard;
+    guard.condition = "ctxt.shared() && ctxt.shared && "
+                      "u8R\"tag(ctxt.fake)tag\" && \\\nctxt.real";
+    guard.actions = "Owner(); shared();";
+    smc::Transition transition;
+    transition.guards.push_back(guard);
+    smc::State state;
+    state.transitions.push_back(transition);
+    smc::StateMap map;
+    map.states.push_back(state);
+    fsm.maps.push_back(map);
+    const auto output = smc::generate_cpp_todo(fsm);
+    assert(output.find("TODO: Owner (action)") != std::string::npos);
+    assert(output.find("void Owner()") == std::string::npos);
+    assert(output.find("shared (action, guard function reference, guard member reference)") !=
+           std::string::npos);
+    assert(output.find("TODO: fake") == std::string::npos);
+    assert(output.find("real (guard member reference)") != std::string::npos);
+    assert(output.find("\\\n") == std::string::npos);
+}
+
 } // namespace
 
 int main() {
@@ -290,4 +400,8 @@ int main() {
     test_cross_map_destination_and_nested_parameter_type();
     test_pop_and_generator_diagnostics();
     test_conflicting_transition_parameters_are_rejected();
+    test_cpp_todo_checklist();
+    test_cpp_todo_empty_and_invalid_actions();
+    test_cpp_todo_parsed_fsm();
+    test_cpp_todo_ambiguous_names_and_comment_safety();
 }
