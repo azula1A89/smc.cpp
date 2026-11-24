@@ -47,4 +47,7 @@ private:
     std::string header_name_;
 };
 
+// Produce a host-class declaration checklist from a possibly incomplete FSM.
+std::string generate_cpp_todo(const Fsm& fsm);
+
 } // namespace smc

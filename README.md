@@ -69,6 +69,28 @@ not open files. The second constructor argument is the generated header's
 include path, shared by both generators; `%fsmfile` does not choose output
 paths. `%fsmclass` selects the FSM class; otherwise the input filename stem
 followed by `Context` is used.
+
+To produce a host-class checklist instead, call:
+
+```cpp
+std::string todo = smc::generate_cpp_todo(fsm);
+```
+
+The returned string is a declaration/comment fragment, not a complete class.
+It lists actions and direct `ctxt.member` guard references, as well as direct
+references in action and pop arguments. Zero-argument actions used only as
+actions receive suggested `void` declarations; other items are TODO comments
+because their types, signatures, and qualifiers cannot be reliably inferred.
+Original action, guard, and pop-argument expressions are included for manual
+review. The scanner is not a C++ parser and cannot resolve macros, aliases,
+indirect references or all complex expressions. Check every usage and adjust
+the declarations before using them. Static qualified actions and the FSM's
+`emptyStateStack` are not owner actions.
+
+The checklist accepts incomplete FSM models without full semantic validation.
+It throws `std::invalid_argument` if action text cannot be parsed by the
+existing C++ action parser. It does not write any files.
+
 The same transition name must have consistent parameter types throughout the
 FSM and consistent parameter names across its guards in one state. Generated
 class, transition and parameter names must be valid C++ identifiers and must

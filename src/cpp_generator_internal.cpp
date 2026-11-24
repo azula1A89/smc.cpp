@@ -4,11 +4,12 @@
 #include <cctype>
 #include <filesystem>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace smc::cpp_detail {
 namespace {
 
-bool identifier(char ch) {
+bool identifier_part(char ch) {
     return std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_';
 }
 
@@ -48,6 +49,27 @@ std::string trim(std::string_view text) {
     return std::string(text.substr(first, text.find_last_not_of(" \t\r\n") - first + 1));
 }
 
+bool identifier(std::string_view value) {
+    static const std::unordered_set<std::string_view> keywords{
+        "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor",
+        "bool", "break", "case", "catch", "char", "char8_t", "char16_t", "char32_t",
+        "class", "compl", "concept", "const", "consteval", "constexpr", "constinit",
+        "const_cast", "continue", "co_await", "co_return", "co_yield", "decltype",
+        "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit",
+        "export", "extern", "false", "float", "for", "friend", "goto", "if", "inline",
+        "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq",
+        "nullptr", "operator", "or", "or_eq", "private", "protected", "public",
+        "register", "reinterpret_cast", "requires", "return", "short", "signed",
+        "sizeof", "static", "static_assert", "static_cast", "struct", "switch",
+        "template", "this", "thread_local", "throw", "true", "try", "typedef",
+        "typeid", "typename", "union", "unsigned", "using", "virtual", "void",
+        "volatile", "wchar_t", "while", "xor", "xor_eq"
+    };
+    if (value.empty() || !(std::isalpha(static_cast<unsigned char>(value.front())) ||
+                           value.front() == '_') || keywords.contains(value)) return false;
+    return std::all_of(value.begin() + 1, value.end(), identifier_part);
+}
+
 std::vector<Parameter> parameters(std::string_view text) {
     std::vector<Parameter> result;
     std::size_t begin = 0;
@@ -77,7 +99,7 @@ std::vector<Parameter> parameters(std::string_view text) {
             auto name = trim(part.substr(0, colon));
             auto type = trim(part.substr(colon + 1));
             if (name.empty() || !(std::isalpha(static_cast<unsigned char>(name.front())) || name.front() == '_') ||
-                !std::all_of(name.begin() + 1, name.end(), identifier) || type.empty() ||
+                !std::all_of(name.begin() + 1, name.end(), identifier_part) || type.empty() ||
                 (colon + 1 < part.size() && part[colon + 1] == ':')) {
                 throw std::invalid_argument("Invalid transition parameter");
             }
@@ -96,7 +118,7 @@ std::vector<Action> actions(std::string_view text) {
         skip_trivia(text, pos);
         if (pos == text.size()) break;
         const auto start = pos;
-        while (pos < text.size() && (identifier(text[pos]) || text[pos] == '.' || text[pos] == ':')) ++pos;
+        while (pos < text.size() && (identifier_part(text[pos]) || text[pos] == '.' || text[pos] == ':')) ++pos;
         if (pos == start) throw std::invalid_argument("Invalid action name");
         std::string name(text.substr(start, pos - start));
         const auto suffix_start = pos;
