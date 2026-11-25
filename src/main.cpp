@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     const auto output_path = output_directory.empty()
                                  ? input_path.parent_path()
                                  : std::filesystem::path(output_directory);
-    const auto stem = input_path.stem().string();
+    const auto stem = fsm->context_class;
     const auto header_path = output_path / (stem + ".hpp");
     const auto source_path = output_path / (stem + ".cpp");
     const auto header_name = header_path.filename().string();
